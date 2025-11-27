@@ -1,0 +1,261 @@
+**“You are an expert full-stack engineer.
+Create a COMPLETE full-stack project using:
+
+Frontend: ReactJS (JavaScript, NOT TypeScript)
+
+Backend: Node.js + Express.js (JavaScript)
+
+Database: MongoDB (Mongoose)
+
+IMPORTANT CREDIT RULES:
+⚠️ Do NOT call any external APIs (like Gemini).
+⚠️ Do NOT load any images, videos, animations, or large assets.
+⚠️ Only generate PLACEHOLDER components, placeholder video players, and placeholder data.
+⚠️ Add comments where API calls WOULD go in the future.
+⚠️ No external media — EVERYTHING must be lightweight so Replit credits are safe.
+
+PROJECT TITLE
+
+Educational Animation Video Generation Platform for Visual Learning
+
+HIGH-LEVEL REQUIREMENT
+
+Build a fully structured, aesthetic, professional web app where:
+
+User enters a prompt (e.g., “Visualize the Doppler effect”).
+
+App pretends to generate a video (use a placeholder video component).
+
+Notes for the visualization are generated (dummy text).
+
+User can:
+
+Watch again
+
+View / download notes
+
+Take quiz
+
+Exit
+
+Quiz page gives 5 MCQs related to the prompt (dummy questions).
+
+If user scores ≥ 3/5 → show “Congrats, you passed!”
+
+Profile page shows:
+
+Videos generated
+
+Notes downloaded
+
+Quiz scores
+
+Learning streak
+
+Browse page shows related online videos using dummy YouTube links.
+
+Everything should look premium, aesthetic, modern — avoid a basic look.
+
+FRONTEND (ReactJS) — DESCRIPTIVE REQUIREMENTS
+
+Use normal JavaScript (.jsx), no TypeScript.
+
+Pages to Create
+1. Home Page
+
+Clean modern hero section
+
+Input box for entering a visualization prompt
+
+“Generate Animation” button
+
+Placeholder video output box
+
+Notes section → collapsible
+
+Buttons:
+
+Watch Again
+
+Take Quiz
+
+Exit
+
+Download Notes button (dummy download)
+
+2. Quiz Page
+
+Fetches prompt from context or URL param
+
+Generates 5 dummy MCQs
+
+Submit button
+
+Shows result (pass/fail)
+
+Updates backend (mock save)
+
+3. Profile Page
+
+Shows:
+
+Videos generated
+
+Notes downloaded
+
+Quiz history
+
+Learning streak
+
+All pulled from backend routes
+
+4. Browse Page
+
+List dummy related YouTube links
+
+No embedding heavy media
+
+Frontend Structure
+client/
+  src/
+    components/
+      Navbar.jsx
+      Sidebar.jsx
+      VideoPlaceholder.jsx
+      NotesPanel.jsx
+    pages/
+      Home.jsx
+      Quiz.jsx
+      Profile.jsx
+      Browse.jsx
+    context/
+      AppContext.jsx
+    App.jsx
+    main.jsx
+
+Frontend Rules
+
+Use CSS or Tailwind (your choice)
+
+NO images
+
+NO videos
+
+NO external assets
+
+The UI should look futuristic & student-friendly.
+
+BACKEND (Node.js + Express.js) — TRADITIONAL SETUP
+
+Use classic MVC structure.
+
+Backend Folder Structure
+server/
+  server.js
+  config/
+    db.js
+  routes/
+    generateRoutes.js
+    quizRoutes.js
+    userRoutes.js
+  controllers/
+    generateController.js
+    quizController.js
+    userController.js
+  models/
+    User.js
+    GeneratedVideo.js
+    Notes.js
+    QuizAttempt.js
+  middleware/
+    errorHandler.js
+    authMiddleware.js (dummy)
+
+Backend Requirements
+1. POST /api/generate
+
+Accepts prompt
+
+Returns dummy JSON:
+
+{ videoUrl: "/placeholder.mp4", notes: "Dummy notes text…" }
+
+
+Add comment:
+
+// TODO: Place Google Gemini API call here when credits available
+
+2. POST /api/quiz/submit
+
+Saves quiz score
+
+Updates learning streak
+
+3. GET /api/profile
+
+Returns user's generated videos, notes, quiz history, streak
+
+Dummy or small mock data allowed
+
+DATABASE (MongoDB + Mongoose)
+
+Create schemas for:
+
+User
+
+name
+
+email
+
+password (hashed)
+
+streak
+
+quizzes: [ref]
+
+videos: [ref]
+
+notes: [ref]
+
+GeneratedVideo
+
+userId
+
+prompt
+
+videoUrl (placeholder)
+
+createdAt
+
+Notes
+
+videoId
+
+notesText
+
+downloaded boolean
+
+QuizAttempt
+
+userId
+
+prompt
+
+score
+
+createdAt
+
+GENERAL EXPECTATIONS
+
+Produce:
+✔ Complete frontend code
+✔ Complete backend code
+✔ All routes, models, controllers
+✔ Folder structure
+✔ Dummy placeholder components
+✔ Comments where real AI/video APIs will be added
+✔ No TS, only JS
+✔ No heavy assets to avoid credit usage
+✔ UI should look aesthetic, modern, and “wow”
+
+Output everything clearly so I can copy the entire full-stack project into Replit and run it immediately.”**

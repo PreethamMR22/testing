@@ -1,0 +1,197 @@
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { apiRequest } from "@/lib/queryClient";
+
+interface GeneratedVideo {
+  id: string;
+  prompt: string;
+  videoUrl: string;
+  createdAt: Date;
+}
+
+interface NotesRecord {
+  id: string;
+  videoId: string;
+  notesText: string;
+  downloaded: boolean;
+  createdAt: Date;
+}
+
+interface QuizAttempt {
+  id: string;
+  prompt: string;
+  score: number;
+  totalQuestions: number;
+  createdAt: Date;
+}
+
+interface ProfileData {
+  videosGenerated: number;
+  notesDownloaded: number;
+  quizAttempts: number;
+  passedQuizzes: number;
+  passRate: number;
+  streak: number;
+  recentVideos: GeneratedVideo[];
+  recentQuizzes: QuizAttempt[];
+}
+
+interface AppContextType {
+  currentPrompt: string;
+  setCurrentPrompt: (prompt: string) => void;
+  generatedVideos: GeneratedVideo[];
+  quizAttempts: QuizAttempt[];
+  streak: number;
+  isGenerating: boolean;
+  currentVideo: GeneratedVideo | null;
+  currentNotes: NotesRecord | null;
+  generateVideo: (prompt: string) => Promise<void>;
+  submitQuiz: (prompt: string, score: number, total: number) => Promise<{ passed: boolean; message: string }>;
+  notesDownloaded: number;
+  loadProfile: () => Promise<void>;
+  profileData: ProfileData | null;
+  markNotesDownloaded: (notesId: string) => Promise<void>;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [currentPrompt, setCurrentPrompt] = useState("");
+  const [generatedVideos, setGeneratedVideos] = useState<GeneratedVideo[]>([]);
+  const [quizAttempts, setQuizAttempts] = useState<QuizAttempt[]>([]);
+  const [streak, setStreak] = useState(7);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentVideo, setCurrentVideo] = useState<GeneratedVideo | null>(null);
+  const [currentNotes, setCurrentNotes] = useState<NotesRecord | null>(null);
+  const [notesDownloaded, setNotesDownloaded] = useState(0);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+
+  const generateVideo = useCallback(async (prompt: string) => {
+    setIsGenerating(true);
+    setCurrentPrompt(prompt);
+    
+    try {
+      const response = await apiRequest("POST", "/api/generate", { prompt });
+      const data = await response.json();
+      
+      const video: GeneratedVideo = {
+        ...data.video,
+        createdAt: new Date(data.video.createdAt),
+      };
+      
+      const notes: NotesRecord = {
+        ...data.notes,
+        createdAt: new Date(data.notes.createdAt),
+      };
+      
+      setCurrentVideo(video);
+      setCurrentNotes(notes);
+      setGeneratedVideos((prev) => [video, ...prev]);
+    } catch (error) {
+      console.error("Failed to generate video:", error);
+      throw error;
+    } finally {
+      setIsGenerating(false);
+    }
+  }, []);
+
+  const submitQuiz = useCallback(async (prompt: string, score: number, total: number) => {
+    try {
+      const response = await apiRequest("POST", "/api/quiz/submit", {
+        prompt,
+        score,
+        totalQuestions: total,
+      });
+      const data = await response.json();
+      
+      const attempt: QuizAttempt = {
+        ...data.attempt,
+        createdAt: new Date(data.attempt.createdAt),
+      };
+      
+      setQuizAttempts((prev) => [attempt, ...prev]);
+      
+      if (data.passed) {
+        setStreak((prev) => prev + 1);
+      }
+      
+      return { passed: data.passed, message: data.message };
+    } catch (error) {
+      console.error("Failed to submit quiz:", error);
+      throw error;
+    }
+  }, []);
+
+  const markNotesDownloaded = useCallback(async (notesId: string) => {
+    try {
+      await apiRequest("POST", `/api/notes/${notesId}/download`);
+      setNotesDownloaded((prev) => prev + 1);
+      if (currentNotes && currentNotes.id === notesId) {
+        setCurrentNotes({ ...currentNotes, downloaded: true });
+      }
+    } catch (error) {
+      console.error("Failed to mark notes as downloaded:", error);
+    }
+  }, [currentNotes]);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const response = await fetch("/api/profile");
+      const data = await response.json();
+      
+      const profile: ProfileData = {
+        ...data,
+        recentVideos: data.recentVideos.map((v: any) => ({
+          ...v,
+          createdAt: new Date(v.createdAt),
+        })),
+        recentQuizzes: data.recentQuizzes.map((q: any) => ({
+          ...q,
+          createdAt: new Date(q.createdAt),
+        })),
+      };
+      
+      setProfileData(profile);
+      setStreak(profile.streak);
+      setNotesDownloaded(profile.notesDownloaded);
+      setGeneratedVideos(profile.recentVideos);
+      setQuizAttempts(profile.recentQuizzes);
+    } catch (error) {
+      console.error("Failed to load profile:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  return (
+    <AppContext.Provider
+      value={{
+        currentPrompt,
+        setCurrentPrompt,
+        generatedVideos,
+        quizAttempts,
+        streak,
+        isGenerating,
+        currentVideo,
+        currentNotes,
+        generateVideo,
+        submitQuiz,
+        notesDownloaded,
+        loadProfile,
+        profileData,
+        markNotesDownloaded,
+      }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useApp() {
+  const context = useContext(AppContext);
+  if (!context) {
+    throw new Error("useApp must be used within an AppProvider");
+  }
+  return context;
+}
