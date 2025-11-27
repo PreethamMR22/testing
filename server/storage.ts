@@ -1,12 +1,13 @@
-import { 
-  type User, type InsertUser,
-  type GeneratedVideo, type InsertGeneratedVideo,
-  type Notes, type InsertNotes,
-  type QuizAttempt, type InsertQuizAttempt,
-  users, generatedVideos, notes, quizAttempts 
+import {
+  type User,
+  type InsertUser,
+  type GeneratedVideo,
+  type InsertGeneratedVideo,
+  type Notes,
+  type InsertNotes,
+  type QuizAttempt,
+  type InsertQuizAttempt,
 } from "@shared/schema";
-import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -27,94 +28,104 @@ export interface IStorage {
   getQuizAttempts(userId?: string): Promise<QuizAttempt[]>;
 }
 
-export class DatabaseStorage implements IStorage {
+class InMemoryStorage implements IStorage {
+  private users: User[] = [];
+  private videos: GeneratedVideo[] = [];
+  private notesStore: Notes[] = [];
+  private quizzes: QuizAttempt[] = [];
+
+  private id() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    return this.users.find((u) => u.id === id);
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
+    return this.users.find((u) => u.username === username);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values({ 
-      ...insertUser, 
-      streak: 0 
-    }).returning();
+    const user = {
+      id: this.id(),
+      username: insertUser.username,
+      password: insertUser.password,
+      streak: 0,
+      createdAt: new Date() as any,
+    } as User;
+    this.users.push(user);
     return user;
   }
 
   async updateUserStreak(userId: string, streak: number): Promise<User | undefined> {
-    const [user] = await db.update(users)
-      .set({ streak })
-      .where(eq(users.id, userId))
-      .returning();
-    return user;
+    const u = this.users.find((x) => x.id === userId);
+    if (u) (u as any).streak = streak;
+    return u;
   }
 
   async createGeneratedVideo(video: InsertGeneratedVideo): Promise<GeneratedVideo> {
-    const [created] = await db.insert(generatedVideos).values(video).returning();
+    const created = {
+      id: this.id(),
+      userId: (video.userId ?? null) as any,
+      prompt: video.prompt,
+      videoUrl: video.videoUrl,
+      createdAt: new Date() as any,
+    } as GeneratedVideo;
+    this.videos.unshift(created);
     return created;
   }
 
   async getGeneratedVideos(userId?: string): Promise<GeneratedVideo[]> {
-    if (userId) {
-      return db.select()
-        .from(generatedVideos)
-        .where(eq(generatedVideos.userId, userId))
-        .orderBy(desc(generatedVideos.createdAt));
-    }
-    return db.select()
-      .from(generatedVideos)
-      .orderBy(desc(generatedVideos.createdAt));
+    return userId ? this.videos.filter((v) => v.userId === userId) : this.videos;
   }
 
   async getGeneratedVideoById(id: string): Promise<GeneratedVideo | undefined> {
-    const [video] = await db.select().from(generatedVideos).where(eq(generatedVideos.id, id));
-    return video;
+    return this.videos.find((v) => v.id === id);
   }
 
   async createNotes(note: InsertNotes): Promise<Notes> {
-    const [created] = await db.insert(notes).values(note).returning();
+    const created = {
+      id: this.id(),
+      videoId: note.videoId,
+      notesText: note.notesText,
+      downloaded: note.downloaded ?? false,
+      createdAt: new Date() as any,
+    } as Notes;
+    this.notesStore.push(created);
     return created;
   }
 
   async getNotesByVideoId(videoId: string): Promise<Notes | undefined> {
-    const [note] = await db.select().from(notes).where(eq(notes.videoId, videoId));
-    return note;
+    return this.notesStore.find((n) => n.videoId === videoId);
   }
 
   async markNotesDownloaded(notesId: string): Promise<Notes | undefined> {
-    const [updated] = await db.update(notes)
-      .set({ downloaded: true })
-      .where(eq(notes.id, notesId))
-      .returning();
-    return updated;
+    const n = this.notesStore.find((x) => x.id === notesId);
+    if (n) (n as any).downloaded = true;
+    return n;
   }
 
-  async getNotesDownloadCount(userId?: string): Promise<number> {
-    const allNotes = await db.select().from(notes).where(eq(notes.downloaded, true));
-    return allNotes.length;
+  async getNotesDownloadCount(_userId?: string): Promise<number> {
+    return this.notesStore.filter((n) => n.downloaded).length;
   }
 
   async createQuizAttempt(attempt: InsertQuizAttempt): Promise<QuizAttempt> {
-    const [created] = await db.insert(quizAttempts).values(attempt).returning();
+    const created = {
+      id: this.id(),
+      userId: (attempt.userId ?? null) as any,
+      prompt: attempt.prompt,
+      score: attempt.score,
+      totalQuestions: attempt.totalQuestions,
+      createdAt: new Date() as any,
+    } as QuizAttempt;
+    this.quizzes.unshift(created);
     return created;
   }
 
   async getQuizAttempts(userId?: string): Promise<QuizAttempt[]> {
-    if (userId) {
-      return db.select()
-        .from(quizAttempts)
-        .where(eq(quizAttempts.userId, userId))
-        .orderBy(desc(quizAttempts.createdAt));
-    }
-    return db.select()
-      .from(quizAttempts)
-      .orderBy(desc(quizAttempts.createdAt));
+    return userId ? this.quizzes.filter((q) => q.userId === userId) : this.quizzes;
   }
 }
 
-export const storage = new DatabaseStorage();
+export const storage = new InMemoryStorage();

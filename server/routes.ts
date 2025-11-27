@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertGeneratedVideoSchema, insertQuizAttemptSchema } from "@shared/schema";
 import { z } from "zod";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 function generateDummyNotes(prompt: string): string {
   const topic = prompt.replace(/^visualize\s+/i, "").replace(/^the\s+/i, "");
@@ -29,6 +30,25 @@ The underlying equations describe the relationship between cause and effect, sho
 This topic represents a fundamental concept in science that has wide-ranging implications across multiple disciplines.`;
 }
 
+async function generateNotesWithGemini(prompt: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured");
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+  const system = `You are EduVision, an expert educational notes generator for a visual learning platform. Produce concise (300–500 words), accurate Markdown with sections: Title (H1), Key Concepts, Intuition, Equations (inline), Real-World Applications, Suggested Animation Storyboard (numbered steps), Summary. No code fences.`;
+  const user = `Topic: ${prompt}\nGenerate the notes following the structure above.`;
+  const result = await model.generateContent([system, user]);
+  const text = result.response.text().trim();
+  if (!text) {
+    throw new Error("Empty response from Gemini");
+  }
+  return text;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -52,7 +72,7 @@ export async function registerRoutes(
         userId: userId || null,
       });
 
-      const notesText = generateDummyNotes(prompt);
+      const notesText = await generateNotesWithGemini(prompt);
       const notesRecord = await storage.createNotes({
         videoId: video.id,
         notesText,

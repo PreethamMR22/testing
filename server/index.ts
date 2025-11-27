@@ -4,6 +4,17 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
+// Silence all console output (logs, errors, warnings)
+// Toggle by setting QUIET=false in the environment if you need logs back
+if (process.env.QUIET !== "false") {
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  console.log = () => {};
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  console.error = () => {};
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  console.warn = () => {};
+}
+
 // Log environment variables (for debugging)
 console.log('NODE_ENV:', process.env.NODE_ENV);
 console.log('PORT:', process.env.PORT);
@@ -94,8 +105,8 @@ app.use((req, res, next) => {
   httpServer.listen(
     {
       port,
-      host: "0.0.0.0",
-      reusePort: true,
+      host: "127.0.0.1",
+    
     },
     () => {
       log(`serving on port ${port}`);
