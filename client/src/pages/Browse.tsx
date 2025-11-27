@@ -1,12 +1,52 @@
-import { useState } from "react";
-import { Search, Filter } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Filter, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BrowseItem } from "@/components/BrowseItem";
 import { useApp } from "@/context/AppContext";
 
-const categories = ["All", "Physics", "Chemistry", "Biology", "Mathematics", "Astronomy"];
+const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
+if (!API_KEY) {
+  console.error('YouTube API key is not set. Please set VITE_YOUTUBE_API_KEY in your .env file');
+}
+
+const categories = ["All", "Physics", "Chemistry", "Biology", "Mathematics", "Astronomy", "Tutorials", "Science"];
+
+const formatPublishedDate = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    }).format(date);
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
+  }
+};
+
+interface YouTubeVideo {
+  id: {
+    videoId: string;
+  };
+  snippet: {
+    title: string;
+    description: string;
+    thumbnails: {
+      medium: {
+        url: string;
+      };
+    };
+    channelTitle: string;
+    publishedAt: string;
+  };
+  statistics?: {
+    viewCount: string;
+    likeCount: string;
+  };
+}
 
 const mockVideos = [
   {
@@ -87,13 +127,66 @@ export default function Browse() {
   const { currentPrompt } = useApp();
   const [searchQuery, setSearchQuery] = useState(currentPrompt || "");
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [videos, setVideos] = useState<YouTubeVideo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredVideos = mockVideos.filter((video) => {
-    const matchesSearch = video.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      video.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "All" || video.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  useEffect(() => {
+    const fetchVideos = async () => {
+      if (!searchQuery.trim() || !API_KEY) {
+        if (!API_KEY) {
+          setError('YouTube API key is not configured');
+        }
+        return;
+      }
+      
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Add category to search query if not 'All'
+        const searchTerm = selectedCategory !== 'All' 
+          ? `${searchQuery} ${selectedCategory}` 
+          : searchQuery;
+          
+        const response = await fetch(
+          `https://www.googleapis.com/youtube/v3/search?` +
+          `part=snippet&maxResults=12&type=video&q=${encodeURIComponent(searchTerm)}&key=${API_KEY}`
+        );
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || 'Failed to fetch videos');
+        }
+        
+        const data = await response.json();
+        setVideos(data.items || []);
+      } catch (err) {
+        console.error('Error fetching videos:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load videos. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    // Add debounce to prevent too many API calls
+    const timer = setTimeout(() => {
+      if (searchQuery.trim()) {
+        fetchVideos();
+      } else {
+        setVideos([]);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [searchQuery, selectedCategory]);
+  
+  const filteredVideos = selectedCategory === 'All' 
+    ? videos 
+    : videos.filter(video => 
+        video.snippet.title.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+        video.snippet.description.toLowerCase().includes(selectedCategory.toLowerCase())
+      );
 
   return (
     <div className="min-h-full p-6">
@@ -137,40 +230,88 @@ export default function Browse() {
         </div>
 
         <div className="space-y-4">
-          {filteredVideos.length > 0 ? (
-            filteredVideos.map((video) => (
-              <BrowseItem
-                key={video.id}
-                title={video.title}
-                description={video.description}
-                duration={video.duration}
-                category={video.category}
-                views={video.views}
-                url={video.url}
-              />
-            ))
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No videos found matching your search.</p>
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-2">Loading videos...</span>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 text-destructive">
+              <p>{error}</p>
               <Button
                 variant="ghost"
-                onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory("All");
-                }}
+                onClick={() => window.location.reload()}
                 className="mt-2"
               >
-                Clear filters
+                Retry
               </Button>
+            </div>
+          ) : filteredVideos.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredVideos.map((video) => (
+                <div key={video.id.videoId} className="rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow">
+                  <div className="relative pt-[56.25%] bg-muted">
+                    <img
+                      src={video.snippet.thumbnails.medium.url}
+                      alt={video.snippet.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-2 right-2 bg-black/75 text-white text-xs px-2 py-1 rounded">
+                      {formatPublishedDate(video.snippet.publishedAt)}
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-medium line-clamp-2 mb-1">{video.snippet.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                      {video.snippet.channelTitle}
+                    </p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">
+                      {video.snippet.description}
+                    </p>
+                    <a
+                      href={`https://www.youtube.com/watch?v=${video.id.videoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-block text-sm font-medium text-primary hover:underline"
+                    >
+                      Watch on YouTube →
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                {searchQuery 
+                  ? "No videos found matching your search." 
+                  : "Enter a search term to find educational videos."}
+              </p>
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setSelectedCategory("All");
+                  }}
+                  className="mt-2"
+                >
+                  Clear search
+                </Button>
+              )}
             </div>
           )}
         </div>
 
-        <div className="text-center pt-4 border-t border-border">
-          <p className="text-sm text-muted-foreground">
-            Showing {filteredVideos.length} of {mockVideos.length} educational videos
-          </p>
-        </div>
+        {filteredVideos.length > 0 && (
+          <div className="text-center pt-4 border-t border-border">
+            <p className="text-sm text-muted-foreground">
+              Showing {filteredVideos.length} {filteredVideos.length === 1 ? 'video' : 'videos'}
+              {searchQuery && ` for "${searchQuery}"`}
+              {selectedCategory !== 'All' && ` in ${selectedCategory}`}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
