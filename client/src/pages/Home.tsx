@@ -15,30 +15,60 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
-      toast({
-        title: "Please enter a prompt",
-        description: "Describe what you'd like to visualize",
-        variant: "destructive",
-      });
-      return;
+const handleGenerate = async () => {
+  if (!prompt.trim()) {
+    toast({
+      title: "Please enter a prompt",
+      description: "Describe what you'd like to visualize",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  try {
+    // 🔥 SEND PROMPT TO BACKEND (Manim route)
+    const res = await fetch("http://127.0.0.1:5000/generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Backend responded with ${res.status} ${res.statusText} ${text}`);
     }
-    
-    try {
-      await generateVideo(prompt);
-      toast({
-        title: "Animation Generated!",
-        description: "Your visualization is ready to watch",
-      });
-    } catch (error) {
-      toast({
-        title: "Generation failed",
-        description: "Please try again",
-        variant: "destructive",
-      });
+
+    const data = await res.json();
+    console.log("Backend Video :", data);
+
+    if (!data.video_url) {
+      throw new Error("Video generation failed: missing video_url in backend response");
     }
-  };
+
+    // ensure absolute URL (backend returns something like "/static/videos/final.mp4")
+    const backendUrl = data.video_url.startsWith("http")
+      ? data.video_url
+      : `http://127.0.0.1:5000${data.video_url}`;
+
+    // pass the backend URL into your app logic
+    await generateVideo(prompt, backendUrl);
+
+    toast({
+      title: "Animation Generated!",
+      description: "Your visualization is ready to watch",
+    });
+  } catch (error) {
+    console.error("handleGenerate error:", error);
+    toast({
+      title: "Generation failed",
+      description:"Please try again",
+      variant: "destructive",
+    });
+  }
+};
+
 
   const handleWatchAgain = () => {
     console.log("Playing video again...");
